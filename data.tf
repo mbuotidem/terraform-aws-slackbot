@@ -192,10 +192,7 @@ def handler(event, context):
             'statusCode': 200,
             'headers': {
                 'Content-Type': 'application/json'
-            },
-            'body': json.dumps({
-                'message': 'Request received and processing'
-            })
+            }
         }
         
     except Exception as e:
