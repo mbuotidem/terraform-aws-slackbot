@@ -332,12 +332,21 @@ resource "aws_lambda_function" "slack_bot_dispatcher" {
   tags = var.tags
 }
 
+# Lambda Alias for Dispatcher (stable reference for provisioned concurrency)
+resource "aws_lambda_alias" "slack_bot_dispatcher_live" {
+  count            = (var.enable_dispatcher_provisioned_concurrency && local.create_gateway_and_dispatcher) ? 1 : 0
+  name             = "live"
+  function_name    = aws_lambda_function.slack_bot_dispatcher[0].function_name
+  function_version = aws_lambda_function.slack_bot_dispatcher[0].version
+}
+
 # Provisioned Concurrency for Dispatcher Lambda (keeps it warm for instant responses)
 resource "aws_lambda_provisioned_concurrency_config" "slack_bot_dispatcher_concurrency" {
   count                             = (var.enable_dispatcher_provisioned_concurrency && local.create_gateway_and_dispatcher) ? 1 : 0
   function_name                     = aws_lambda_function.slack_bot_dispatcher[0].function_name
   provisioned_concurrent_executions = 1
-  qualifier                         = aws_lambda_function.slack_bot_dispatcher[0].version
+  qualifier                         = aws_lambda_alias.slack_bot_dispatcher_live[0].name
+
 }
 
 # resource "aws_lambda_provisioned_concurrency_config" "slack_bot_lambda" {
