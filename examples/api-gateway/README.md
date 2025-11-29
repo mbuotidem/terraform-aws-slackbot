@@ -1,6 +1,6 @@
 # Lambda Function URL Example
 
-This example demonstrates how to deploy the Slack bot using an AWS Lambda Function URL instead of API Gateway.
+This example demonstrates how to deploy the Slack bot using an AWS Lambda Function URL (which is now the default behavior).
 
 ## Terraform Code
 
@@ -13,8 +13,8 @@ module "slack_bot" {
   slack_signing_secret = var.slack_signing_secret
   tags                 = var.tags
 
-  use_function_url     = true
-  function_url         = var.function_url # Optional: override the generated function URL
+  # Lambda Function URL is now the default
+  # No need to set create_api_gateway (defaults to false)
 }
 ```
 
@@ -48,6 +48,9 @@ terraform apply
 - **`terraform.tfvars.example`**: Example variable values.
 
 <!-- BEGIN_TF_DOCS -->
+<details>
+<summary><strong>📋 Full Terraform Reference</strong></summary>
+
 
 
 ## Requirements
@@ -65,7 +68,7 @@ No providers.
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
 | <a name="input_bedrock_model_id"></a> [bedrock\_model\_id](#input\_bedrock\_model\_id) | The Bedrock model ID to use for AI responses | `string` | `"anthropic.claude-3-5-sonnet-20241022-v2:0"` | no |
-| <a name="input_function_url"></a> [function\_url](#input\_function\_url) | The Lambda Function URL to use in the Slack manifest if use\_function\_url is true. | `string` | `""` | no |
+| <a name="input_function_url"></a> [function\_url](#input\_function\_url) | The Lambda Function URL to use in the Slack manifest (only used when create\_api\_gateway is false). | `string` | `""` | no |
 | <a name="input_lambda_function_name"></a> [lambda\_function\_name](#input\_lambda\_function\_name) | Name of the Lambda function | `string` | `"lambda-function-url-terraform-aws-slackbot-lambdalith"` | no |
 | <a name="input_slack_bot_token"></a> [slack\_bot\_token](#input\_slack\_bot\_token) | The Slack bot token for authentication | `string` | n/a | yes |
 | <a name="input_slack_signing_secret"></a> [slack\_signing\_secret](#input\_slack\_signing\_secret) | The Slack signing secret for verification | `string` | n/a | yes |
@@ -82,4 +85,5 @@ No providers.
 ## Resources
 
 No resources.
+</details>
 <!-- END_TF_DOCS -->

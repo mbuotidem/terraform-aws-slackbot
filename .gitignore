@@ -37,8 +37,7 @@ override.tf.json
 terraform.rc
 
 # Lambda build artifacts
-lambda_build/
-layer_build/
+.artifacts/
 
 # IDE files
 .vscode/
@@ -54,6 +53,6 @@ Thumbs.db
 *.log
 
 # Misc
-lambda_function_custom*
 slack_app_manifest.json
-dispatcher_build/
+
+.venv

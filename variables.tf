@@ -47,10 +47,10 @@ variable "lambda_timeout" {
   }
 }
 
-variable "enable_dispatcher_provisioned_concurrency" {
-  description = "Enable provisioned concurrency for the dispatcher Lambda to eliminate cold starts"
-  type        = bool
-  default     = true
+variable "provisioned_concurrency_count" {
+  description = "Enable provisioned concurrency for the Lambda to eliminate cold starts"
+  type        = number
+  default     = 1
 }
 
 variable "bedrock_model_id" {
@@ -86,7 +86,7 @@ variable "python_version" {
 variable "lambda_source_path" {
   description = "Path to custom Lambda function source code (zip file or directory)"
   type        = string
-  default     = ""
+  default     = "./lambda"
 }
 
 variable "lambda_source_type" {
@@ -145,7 +145,6 @@ variable "slack_slash_command_description" {
   default     = "Ask a question to the Bedrock bot"
 }
 
-
 variable "lambda_env_vars" {
   description = "Environment variables to add to Lambda"
   type        = map(string)
@@ -154,8 +153,8 @@ variable "lambda_env_vars" {
   }
 }
 
-variable "use_function_url" {
-  description = "If true, use Lambda Function URL instead of API Gateway. Dispatcher Lambda and API Gateway will not be created."
+variable "create_api_gateway" {
+  description = "If true, create API Gateway instead of Lambda Function URL. Lambda Function URL is recommended for most use cases due to simplicity and lower cost."
   type        = bool
   default     = false
 }
@@ -163,12 +162,12 @@ variable "use_function_url" {
 variable "enable_application_signals" {
   default     = false
   description = "If true, enables Application signals for monitoring and observability."
-
+  type        = bool
 }
 
 variable "opentelemetry_python_layer_arns" {
   type        = map(string)
-  description = "Map of AWS region to OpenTelemetry Lambda Layer ARN for Python."
+  description = "Map of AWS region to OpenTelemetry Lambda Layer ARN for Python"
   default = {
     "us-east-1"      = "arn:aws:lambda:us-east-1:615299751070:layer:AWSOpenTelemetryDistroPython:16"
     "us-east-2"      = "arn:aws:lambda:us-east-2:615299751070:layer:AWSOpenTelemetryDistroPython:13"
@@ -201,7 +200,61 @@ variable "opentelemetry_python_layer_arns" {
   }
 }
 
-variable "enable_snapstart" {
-  default = false
+variable "additional_lambda_layer_arns" {
+  type        = list(string)
+  description = "Additional Lambda layer ARNs to attach to the function. Ensure layers match the selected lambda_architecture."
+  default     = []
+  # Example x86_64: ["arn:aws:lambda:us-east-1:017000801446:layer:AWSLambdaPowertoolsPythonV3-python312-x86_64:27"]
+  # Example arm64:   ["arn:aws:lambda:us-east-1:017000801446:layer:AWSLambdaPowertoolsPythonV3-python312-arm64:27"]
+}
 
+variable "enable_snapstart" {
+  description = "Enable SnapStart for faster cold starts (Java 11+ runtimes only). Cannot be used with provisioned concurrency."
+  type        = bool
+  default     = false
+}
+
+variable "sqs_batch_size" {
+  description = "Maximum number of SQS messages to process in a single Lambda invocation"
+  type        = number
+  default     = 10
+
+  validation {
+    condition     = var.sqs_batch_size >= 1 && var.sqs_batch_size <= 10
+    error_message = "SQS batch size must be between 1 and 10 for FIFO queues."
+  }
+}
+
+variable "sqs_maximum_concurrency" {
+  description = "Maximum number of concurrent Lambda functions that can be invoked by SQS"
+  type        = number
+  default     = 2
+
+  validation {
+    condition     = var.sqs_maximum_concurrency >= 2 && var.sqs_maximum_concurrency <= 1000
+    error_message = "SQS maximum concurrency must be between 2 and 1000."
+  }
+}
+
+variable "enable_sqs_processing" {
+  type        = bool
+  default     = true
+  description = "Enable async SQS processing for Slack events"
+}
+
+variable "enable_powertools_layer" {
+  type        = bool
+  default     = true
+  description = "Enable AWS Lambda Powertools Python layer for enhanced logging and tracing"
+}
+
+variable "lambda_architecture" {
+  description = "Instruction set architecture for Lambda function"
+  type        = string
+  default     = "x86_64"
+
+  validation {
+    condition     = contains(["x86_64", "arm64"], var.lambda_architecture)
+    error_message = "Lambda architecture must be either 'x86_64' or 'arm64'."
+  }
 }
