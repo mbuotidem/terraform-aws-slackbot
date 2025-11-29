@@ -195,7 +195,8 @@ resource "aws_lambda_function" "slack_bot_lambda" {
         "SQS_QUEUE_URL" = aws_sqs_queue.slackbot[0].url
       } : {},
       var.enable_powertools_layer ? {
-      "POWERTOOLS_SERVICE_NAME" = var.lambda_function_name } : {},
+        "POWERTOOLS_SERVICE_NAME" = var.lambda_function_name
+      } : {},
 
     )
   }

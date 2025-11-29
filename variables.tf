@@ -167,7 +167,7 @@ variable "enable_application_signals" {
 
 variable "opentelemetry_python_layer_arns" {
   type        = map(string)
-  description = "Map of AWS region to OpenTelemetry Lambda Layer ARN for Python"
+  description = "Map of AWS region to OpenTelemetry Lambda Layer ARN for Python."
   default = {
     "us-east-1"      = "arn:aws:lambda:us-east-1:615299751070:layer:AWSOpenTelemetryDistroPython:16"
     "us-east-2"      = "arn:aws:lambda:us-east-2:615299751070:layer:AWSOpenTelemetryDistroPython:13"

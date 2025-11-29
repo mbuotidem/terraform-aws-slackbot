@@ -16,11 +16,3 @@ locals {
     var.enable_powertools_layer ? [data.aws_ssm_parameter.powertools_layer_arn[0].value] : []
   )
 }
-
-# Validation: SnapStart and Provisioned Concurrency are mutually exclusive
-check "snapstart_and_provisioned_concurrency_mutual_exclusion" {
-  assert {
-    condition     = !(var.enable_snapstart && var.provisioned_concurrency_count > 0)
-    error_message = "SnapStart and provisioned concurrency cannot be enabled simultaneously. Set enable_snapstart to false or provisioned_concurrency_count to 0."
-  }
-}

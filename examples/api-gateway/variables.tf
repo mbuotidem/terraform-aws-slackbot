@@ -20,12 +20,6 @@ variable "tags" {
   default     = {}
 }
 
-variable "function_url" {
-  description = "The Lambda Function URL to use in the Slack manifest (only used when create_api_gateway is false)."
-  type        = string
-  default     = ""
-}
-
 variable "lambda_function_name" {
   description = "Name of the Lambda function"
   type        = string
