@@ -1,5 +1,7 @@
 .PHONY: help init validate plan apply fmt docs test clean
 
+.SHELLFLAGS := -e -c
+
 help: ## Display this help message
 	@echo "Available targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-15s %s\n", $$1, $$2}'
@@ -16,47 +18,47 @@ plan: ## Generate Terraform plan
 
 apply: ## Apply Terraform configuration in all examples with auto-approve
 	@for example in examples/*/; do \
-		echo "Applying $$example"; \
-		cd "$$example"; \
-		terraform init; \
-		terraform apply -auto-approve; \
-		cd - > /dev/null; \
+		echo "Applying $$example" && \
+		cd "$$example" && \
+		terraform init && \
+		terraform apply -auto-approve && \
+		cd - > /dev/null || exit 1; \
 	done
 destroy: ## Apply Terraform configuration in all examples with auto-approve
 	@for example in examples/*/; do \
-		echo "Destroying $$example"; \
-		cd "$$example"; \
-		terraform init; \
-		terraform destroy -auto-approve; \
-		cd - > /dev/null; \
+		echo "Destroying $$example" && \
+		cd "$$example" && \
+		terraform init && \
+		terraform destroy -auto-approve && \
+		cd - > /dev/null || exit 1; \
 	done
 
 fmt: ## Format Terraform files
 	terraform fmt -recursive
 
 docs: ## Generate documentation
-	terraform-docs .
-	terraform-docs ./examples/basic
-	terraform-docs ./examples/basic-inline-requirements
-	terraform-docs ./examples/custom-lambda-zip
-	terraform-docs ./examples/custom-lambda-directory
-	terraform-docs ./examples/lambda-function-url
+	terraform-docs . && \
+	terraform-docs ./examples/basic && \
+	terraform-docs ./examples/basic-inline-requirements && \
+	terraform-docs ./examples/custom-lambda-zip && \
+	terraform-docs ./examples/custom-lambda-directory && \
+	terraform-docs ./examples/api-gateway
 
 test: ## Run tests on all examples
 	@for example in examples/*/; do \
-		echo "Testing $$example"; \
-		cd "$$example"; \
-		terraform init; \
-		terraform validate; \
-		terraform plan -no-color; \
-		cd - > /dev/null; \
+		echo "Testing $$example" && \
+		cd "$$example" && \
+		terraform init && \
+		terraform validate && \
+		terraform plan -no-color && \
+		cd - > /dev/null || exit 1; \
 	done
 
 clean: ## Clean up temporary files
 	find . -name ".terraform" -type d -exec rm -rf {} + 2>/dev/null || true
 	find . -name "*.tfstate*" -type f -exec rm -f {} + 2>/dev/null || true
 	find . -name ".terraform.lock.hcl" -type f -exec rm -f {} + 2>/dev/null || true
-	rm -rf lambda_build/ layer_build/ *.zip
+	rm -rf .artifacts/
 
 security: ## Run security scan
 	trivy config .

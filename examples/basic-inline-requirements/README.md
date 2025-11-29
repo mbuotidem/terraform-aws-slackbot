@@ -53,8 +53,6 @@ terraform apply
 - `outputs.tf`: Output values from the module.
 - `terraform.tfvars.example`: Example variable values.
 <!-- BEGIN_TF_DOCS -->
-
-
 ## Requirements
 
 | Name | Version |
@@ -64,6 +62,16 @@ terraform apply
 ## Providers
 
 No providers.
+
+## Modules
+
+| Name | Source | Version |
+|------|--------|---------|
+| <a name="module_slack_bot"></a> [slack\_bot](#module\_slack\_bot) | ../.. | n/a |
+
+## Resources
+
+No resources.
 
 ## Inputs
 
@@ -83,8 +91,4 @@ No providers.
 | <a name="output_lambda_layer_info"></a> [lambda\_layer\_info](#output\_lambda\_layer\_info) | Information about the Lambda layer |
 | <a name="output_secret_manager_console_url"></a> [secret\_manager\_console\_url](#output\_secret\_manager\_console\_url) | AWS console URL to manage the Slack bot token |
 | <a name="output_slack_webhook_url"></a> [slack\_webhook\_url](#output\_slack\_webhook\_url) | URL to configure in your Slack app for event subscriptions |
-
-## Resources
-
-No resources.
 <!-- END_TF_DOCS -->

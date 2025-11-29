@@ -10,6 +10,5 @@ module "slack_bot" {
   slack_signing_secret = var.slack_signing_secret
   tags                 = var.tags
   lambda_function_name = var.lambda_function_name
-  # Enable Lambda Function URL instead of API Gateway
-  use_function_url = true
+  create_api_gateway   = true
 }
