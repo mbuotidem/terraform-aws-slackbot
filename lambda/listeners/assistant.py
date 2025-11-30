@@ -4,7 +4,7 @@ from slack_bolt import Assistant, BoltContext, Say, SetSuggestedPrompts, SetStat
 from slack_bolt.context.get_thread_context import GetThreadContext
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
-import sys
+
 import os
 
 from .llm_caller import call_bedrock_stream
@@ -71,7 +71,7 @@ def process_message_lazily(
         set_status("is thinking...")
 
         # Call streaming version with live message updates using Slack's chat_stream API
-        returned_message = call_bedrock_stream(
+        call_bedrock_stream(
             messages_in_thread,
             client=client,
             channel=channel_id,
@@ -106,7 +106,7 @@ def process_message_lazily(
         set_status("is thinking...")
 
         # Use Slack's chat_stream API for streaming responses
-        returned_message = call_bedrock_stream(
+        call_bedrock_stream(
             messages_in_thread,
             client=client,
             channel=channel_id,
@@ -170,9 +170,4 @@ def respond_in_assistant_thread(
     say: Say,
     logger=logger,
 ):
-    try:
-        user_message = payload["text"]
-
-    except Exception as e:
-        logger.exception(f"Failed to handle a user message event: {e}")
-        say(f":warning: Something went wrong! ({e})")
+    pass

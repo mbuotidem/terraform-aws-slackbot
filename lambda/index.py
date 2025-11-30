@@ -114,8 +114,8 @@ def handler(event, context):
                         "headers": {"x-slack-no-retry": "1"},
                         "body": challenge,
                     }
-            except json.JSONDecodeError:
-                pass
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to decode Slack event body as JSON: {e}")
 
         # Send ENTIRE original event to SQS for async processing
         # This preserves the exact format SlackRequestHandler expects
@@ -124,8 +124,10 @@ def handler(event, context):
             sqs.send_message(
                 QueueUrl=queue_url,
                 MessageBody=json.dumps(event),  # Send the whole event!
-                MessageGroupId=(
-                    context.aws_request_id if queue_url.endswith(".fifo") else None
+                **(
+                    {"MessageGroupId": context.aws_request_id}
+                    if queue_url.endswith(".fifo")
+                    else {}
                 ),
             )
             logger.info("Sent event to SQS for async processing")

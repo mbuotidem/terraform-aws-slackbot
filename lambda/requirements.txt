@@ -1,7 +1,6 @@
 boto3==1.41.5
 urllib3==2.5.0
 slack-bolt==1.27.0
-slack-sdk>=3.39.0
+slack-sdk>=3.39.0,<4
 aws-lambda-powertools==3.17.0
-aiohttp
-chardet
+

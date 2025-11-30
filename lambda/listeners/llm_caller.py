@@ -69,7 +69,9 @@ def call_bedrock_stream(
     Returns:
         str: Complete response content formatted for Slack
     """
-    logger.debug("Messages being sent to Bedrock", extra={"messages": messages_in_thread})
+    logger.debug(
+        "Messages being sent to Bedrock", extra={"messages": messages_in_thread}
+    )
 
     # Convert thread messages to Bedrock format
     messages = []
@@ -115,7 +117,14 @@ def call_bedrock_stream(
                     streamer.append(markdown_text=markdown_to_slack(delta_text))
 
                 if "messageStop" in event:
-                    logger.info("Bedrock stream stopped", extra={"stop_reason": event['messageStop']['stopReason']})
+                    logger.info(
+                        "Bedrock stream stopped",
+                        extra={
+                            "stop_reason": event.get("messageStop", {}).get(
+                                "stopReason", "unknown"
+                            )
+                        },
+                    )
 
                 if "metadata" in event:
                     metadata = event["metadata"]
@@ -123,10 +132,12 @@ def call_bedrock_stream(
                         logger.info(
                             "Bedrock token usage",
                             extra={
-                                "input_tokens": metadata['usage']['inputTokens'],
-                                "output_tokens": metadata['usage']['outputTokens'],
-                                "total_tokens": metadata['usage']['totalTokens']
-                            }
+                                "input_tokens": metadata["usage"].get("inputTokens", 0),
+                                "output_tokens": metadata["usage"].get(
+                                    "outputTokens", 0
+                                ),
+                                "total_tokens": metadata["usage"].get("totalTokens", 0),
+                            },
                         )
 
         # Stop the Slack stream
