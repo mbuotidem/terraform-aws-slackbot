@@ -1,142 +1,162 @@
-import json
-import os
-import boto3
-
-
-from slack_bolt import App, Say, SetStatus
+from aws_lambda_powertools import Logger, Tracer
+from aws_lambda_powertools.utilities.batch import (
+    BatchProcessor,
+    EventType,
+    process_partial_response,
+)
+from aws_lambda_powertools.utilities.data_classes import (
+    LambdaFunctionUrlEvent,
+    APIGatewayProxyEvent,
+)
+from aws_lambda_powertools.utilities.data_classes.sqs_event import SQSRecord
+from aws_lambda_powertools.utilities.parameters import get_secret
+from listeners import register_listeners
+from slack_bolt import App
 from slack_bolt.adapter.aws_lambda import SlackRequestHandler
+from slack_sdk import WebClient
+import json
+import boto3
+import os
 
-# Initialize AWS clients for Bedrock and Secrets Manager
-bedrock_runtime_client = boto3.client("bedrock-runtime")
-secretsmanager_client = boto3.client("secretsmanager")
+logger = Logger()
+tracer = Tracer()
+processor = BatchProcessor(event_type=EventType.SQS)
+sqs = boto3.client("sqs")
 
-slack_token = json.loads(
-    secretsmanager_client.get_secret_value(SecretId=os.environ.get("token"))[
-        "SecretString"
-    ]
-)["token"]
-slack_signing_secret = json.loads(
-    secretsmanager_client.get_secret_value(SecretId=os.environ.get("secret"))[
-        "SecretString"
-    ]
-)["secret"]
+# Slack app setup
+slack_token = get_secret(os.environ.get("token"), transform="json")["token"]
+slack_signing_secret = get_secret(os.environ.get("secret"), transform="json")["secret"]
 
-# Configuration from template variables
-BEDROCK_MODEL_ID = "${bedrock_model_id}"
-
-# process_before_response must be True when running on FaaS
-# see also https://tools.slack.dev/bolt-python/concepts/lazy-listeners/ for an explainer on how to handle long running processes
 app = App(
-    process_before_response=True, signing_secret=slack_signing_secret, token=slack_token
+    signing_secret=slack_signing_secret,
+    client=WebClient(token=slack_token),
+    process_before_response=True,
 )
 
 
-def respond_to_slack_within_3_seconds(body, ack):
-    text = body.get("text")
-    if text is None or len(text) == 0:
-        ack(":x: Usage: /start-process (description here)")
-    else:
-        ack(f"Accepted! (task: {body['text']})")
+def record_handler(record: SQSRecord, context):
+    """Process individual SQS records containing original Lambda events"""
+    # The SQS message body contains the ORIGINAL Lambda event
+    # that SlackRequestHandler expects
+    original_event = json.loads(record.body)
 
-
-def call_bedrock(question):
-    body = json.dumps(
-        {
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 3000,
-            "system": "You are a helpful Slack bot assistant. Respond in a friendly and concise manner.",
-            "messages": [{"role": "user", "content": question}],
-            "temperature": 0.5,
-        }
+    logger.info(
+        "Processing Slack event from SQS",
+        extra={
+            "event_type": original_event.get("requestContext", {})
+            .get("http", {})
+            .get("method")
+            or original_event.get("requestContext", {}).get("httpMethod")
+        },
     )
 
-    model_id = BEDROCK_MODEL_ID
-    accept = "application/json"
-    content_type = "application/json"
+    # Pass the original event directly to SlackRequestHandler
+    register_listeners(app)
+    slack_handler = SlackRequestHandler(app=app)
 
-    # Call the Bedrock AI model
-    response = bedrock_runtime_client.invoke_model(
-        body=body, modelId=model_id, accept=accept, contentType=content_type
+    response = slack_handler.handle(original_event, context)
+    logger.info(
+        "Processed Slack event", extra={"status_code": response.get("statusCode")}
     )
 
-    # Process the response from the Bedrock AI model
-    response_content = response["body"].read().decode("utf-8")
-    response_body = json.loads(response_content)
 
-    return response_body.get("content")[0].get("text")
+@logger.inject_lambda_context
+@tracer.capture_lambda_handler
+def handler(event, context):
+    """
+    Universal handler supporting:
+    - Lambda Function URL (direct from Slack)
+    - API Gateway v1/v2 (direct from Slack)
+    - SQS Event Source Mapping (async processing)
+    """
 
+    # Path 1: SQS Batch Processing
+    if (
+        "Records" in event
+        and event.get("Records", [{}])[0].get("eventSource") == "aws:sqs"
+    ):
+        logger.info(f"Processing {len(event.get('Records', []))} SQS records")
 
-import time
-
-
-def run_long_process(respond, body):
-    time.sleep(5)  # longer than 3 seconds
-    respond(f"Completed! (task: {body['text']})")
-
-
-app.command("/start-process")(
-    ack=respond_to_slack_within_3_seconds,  # responsible for calling `ack()`
-    lazy=[run_long_process],  # unable to call `ack()` / can have multiple functions
-)
-
-
-def acknowledge_message(body, logger, set_status: SetStatus):
-    """Acknowledge the message event and set typing indicator."""
-    event = body.get("event", {})
-    if "bot_id" in event and event["bot_id"] is not None:
-        return
-    try:
-        set_status("is typing...")
-    except Exception as e:
-        logger.error(f"Error setting status: {e}")
-
-
-def process_message_lazily(body, logger, say: Say):
-    """Process the message, call Bedrock, and send a reply."""
-    event = body.get("event", {})
-    text = event.get("text")
-
-    if "bot_id" in event and event["bot_id"] is not None:
-        return
-
-    if not text:
-        logger.info("No text in message, skipping Bedrock call.")
-        return
-
-    try:
-        print(event)
-        generated_text = call_bedrock(text)
-        logger.info(f"Bedrock response: {generated_text}")
-        say(generated_text)
-    except Exception as e:
-        logger.error(f"Error processing event: {e}")
-        say(
-            "Sorry, there was an error communicating with AWS Bedrock. The good news is that your Slack App works! If you want to get Bedrock working, check that you've "
-            "<https://docs.aws.amazon.com/bedrock/latest/userguide/model-access-modify.html|enabled model access> "
-            "and are using the correct <https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html#cross-region-inference-use|inference profile>. "
-            "If both of these are true, there is some other error. Check your lambda logs for more info."
+        # Batch process with partial failure handling
+        return process_partial_response(
+            event=event,
+            record_handler=lambda record: record_handler(record, context),
+            processor=processor,
+            context=context,
         )
 
-
-app.event("message")(ack=acknowledge_message, lazy=[process_message_lazily])
-
-
-def handle_challenge(event):
-    body = json.loads(event["body"])
-
-    return {
-        "statusCode": 200,
-        "headers": {"x-slack-no-retry": "1"},
-        "body": body["challenge"],
-    }
-
-
-def handler(event, context):
-    event_body = json.loads(event.get("body"))
-    response = None
-    if event_body.get("type") == "url_verification":
-        response = handle_challenge(event)
-        return response
+    # Path 2: Direct invocation from Slack (Function URL or API Gateway)
     else:
-        slack_handler = SlackRequestHandler(app=app)
-        return slack_handler.handle(event, context)
+        # Detect event type using Powertools data classes
+        event_type = detect_event_type(event)
+        logger.append_keys(event_type=event_type)
+
+        # Parse with appropriate data class
+        if event_type == "function_url":
+            typed_event = LambdaFunctionUrlEvent(event)
+            body = typed_event.body
+        elif event_type in ["api_gateway_v1", "api_gateway_v2"]:
+            typed_event = APIGatewayProxyEvent(event)
+            body = typed_event.body
+        else:
+            logger.error("Unknown event type", extra={"event": event})
+            return {"statusCode": 400, "body": "Unknown event type"}
+
+        # Handle Slack URL verification challenge (synchronous response required)
+        if body:
+            try:
+                body_json = json.loads(body)
+                if body_json.get("type") == "url_verification":
+                    challenge = body_json.get("challenge")
+                    logger.info("Responding to Slack URL verification challenge")
+                    return {
+                        "statusCode": 200,
+                        "headers": {"x-slack-no-retry": "1"},
+                        "body": challenge,
+                    }
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to decode Slack event body as JSON: {e}")
+
+        # Send ENTIRE original event to SQS for async processing
+        # This preserves the exact format SlackRequestHandler expects
+        queue_url = os.environ.get("SQS_QUEUE_URL")
+        if queue_url:
+            sqs.send_message(
+                QueueUrl=queue_url,
+                MessageBody=json.dumps(event),  # Send the whole event!
+                **(
+                    {"MessageGroupId": context.aws_request_id}
+                    if queue_url.endswith(".fifo")
+                    else {}
+                ),
+            )
+            logger.info("Sent event to SQS for async processing")
+        else:
+            # Fallback: process synchronously (for testing or if SQS disabled)
+            logger.warning("No SQS queue configured, processing synchronously")
+            register_listeners(app)
+            slack_handler = SlackRequestHandler(app=app)
+            return slack_handler.handle(event, context)
+
+        # Respond immediately to Slack (meets 3-second requirement)
+        return {"statusCode": 200, "body": ""}
+
+
+def detect_event_type(event: dict) -> str:
+    """Detect whether event is from Function URL, API Gateway v1, or v2"""
+    if "requestContext" in event:
+        request_context = event["requestContext"]
+
+        # Function URL has requestContext.http.method and requestContext.domainName
+        if "http" in request_context and request_context.get("domainName"):
+            return "function_url"
+
+        # API Gateway v2 has requestContext.http
+        elif "http" in request_context:
+            return "api_gateway_v2"
+
+        # API Gateway v1 has requestContext.httpMethod
+        elif "httpMethod" in request_context or "httpMethod" in event:
+            return "api_gateway_v1"
+
+    return "unknown"

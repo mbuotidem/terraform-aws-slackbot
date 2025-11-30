@@ -105,10 +105,10 @@ data "archive_file" "lambda_layer_zip" {
 # Trigger for Lambda code changes
 resource "terraform_data" "lambda_code_trigger" {
   triggers_replace = {
-    shell_hash = sha256(join("", [
-      file("${path.module}/lambda/index.py"),
-      var.bedrock_model_inference_profile
-    ]))
+    lambda_files_hash = sha256(join("", concat(
+      [for f in fileset("${path.module}/lambda", "**/*.py") : filesha256("${path.module}/lambda/${f}")],
+      [var.bedrock_model_inference_profile]
+    )))
   }
 }
 
@@ -120,23 +120,26 @@ resource "terraform_data" "lambda_build_init" {
 }
 
 # Create the Lambda function code
-resource "local_file" "lambda_code" {
+resource "terraform_data" "lambda_code" {
   count = var.lambda_source_type == "default" ? 1 : 0
 
-  content = templatefile("${path.module}/lambda/index.py", {
-    bedrock_model_id = var.bedrock_model_inference_profile
+  triggers_replace = {
+    code_trigger = terraform_data.lambda_code_trigger.id
+  }
 
-  })
-  filename = "${local.artifacts_dir}/lambda_build/index.py"
+  provisioner "local-exec" {
+    command = <<-EOT
+      # Clean the lambda build directory (except .placeholder)
+      echo "Cleaning lambda build directory..."
+      find ${local.artifacts_dir}/lambda_build -mindepth 1 ! -name '.placeholder' -delete
+
+      # Copy entire lambda directory structure
+      echo "Copying lambda code..."
+      cp -r ${path.module}/lambda/* ${local.artifacts_dir}/lambda_build/
+    EOT
+  }
 
   depends_on = [terraform_data.lambda_build_init]
-
-  # Force recreation when trigger changes
-  lifecycle {
-    replace_triggered_by = [
-      terraform_data.lambda_code_trigger
-    ]
-  }
 }
 
 # Archive the Lambda function code
@@ -146,7 +149,7 @@ data "archive_file" "lambda_zip" {
   source_dir  = "${local.artifacts_dir}/lambda_build"
   output_path = "${local.artifacts_dir}/lambda_build/lambda_function.zip"
 
-  depends_on = [local_file.lambda_code, terraform_data.lambda_build_init]
+  depends_on = [terraform_data.lambda_code, terraform_data.lambda_build_init]
 }
 
 # Conditional archive file for custom Lambda source

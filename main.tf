@@ -131,7 +131,27 @@ resource "aws_iam_role_policy" "slack_bot_role_policy" {
         ]
         Effect   = "Allow"
         Resource = ["arn:aws:lambda:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:function:${var.lambda_function_name}*"]
-
+      },
+      {
+        Sid = "AllowOnlySpecificMarketplaceSubscription"
+        Action = [
+          "aws-marketplace:ViewSubscriptions",
+          "aws-marketplace:Subscribe"
+        ]
+        Effect   = "Allow"
+        Resource = "*"
+        Condition = {
+          "ForAllValues:StringEquals" = {
+            "aws-marketplace:ProductId" = [
+              "prod-4pmewlybdftbs",
+              "prod-xdkflymybwmvi",
+              "prod-4dlfvry4v5hbi"
+            ]
+          }
+          "StringEquals" = {
+            "aws:CalledViaLast" = "bedrock.amazonaws.com"
+          }
+        }
       }
       ],
       local.create_sqs_resources ? [{
