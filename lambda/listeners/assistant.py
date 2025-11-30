@@ -117,10 +117,9 @@ def process_message_lazily(
     except Exception as e:
         logger.error(f"Error processing event: {e}")
         say(
-            "Sorry, there was an error communicating with AWS Bedrock. The good news is that your Slack App works! If you want to get Bedrock working, check that you've "
-            "<https://docs.aws.amazon.com/bedrock/latest/userguide/model-access-modify.html|enabled model access> "
-            "and are using the correct <https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html#cross-region-inference-use|inference profile>. "
-            "If both of these are true, there is some other error. Check your lambda logs for more info."
+            "Sorry, there was an error communicating with AWS Bedrock. The good news is that your Slack App works! If you want to get Bedrock working, check that you "
+            "are using the correct <https://docs.aws.amazon.com/bedrock/latest/userguide/cross-region-inference.html#cross-region-inference-use|inference profile>. "
+            "If you are, there is some other error. Check your lambda logs for more info."
         )
 
 
